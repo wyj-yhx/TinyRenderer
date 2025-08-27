@@ -189,31 +189,65 @@ bool TGAImage::load_rle_data(std::ifstream& in) {
 	return true;
 }
 
+/**
+ * @brief 将TGA图像数据写入文件
+ *
+ * 该函数负责将TGA图像数据写入指定文件，支持RAW和RLE两种编码格式。
+ * 包含完整的TGA文件头、图像数据、开发区域引用、扩展区域引用和文件尾。
+ *
+ * @param filename 输出文件名
+ * @param rle 是否使用RLE压缩编码（true：使用RLE，false：使用RAW）
+ * @return true 文件写入成功
+ * @return false 文件写入失败
+ */
 bool TGAImage::write_tga_file(const char* filename, bool rle) {
+	// 开发区域引用（4字节全0，表示无开发区域数据）
 	unsigned char developer_area_ref[4] = { 0, 0, 0, 0 };
+
+	// 扩展区域引用（4字节全0，表示无扩展区域数据）
 	unsigned char extension_area_ref[4] = { 0, 0, 0, 0 };
+
+	// TGA文件尾标识符（TRUEVISION-XFILE. + 空字符）
 	unsigned char footer[18] = { 'T','R','U','E','V','I','S','I','O','N','-','X','F','I','L','E','.','\0' };
+
+	// 创建输出文件流（二进制模式）
 	std::ofstream out;
 	out.open(filename, std::ios::binary);
+
+	// 检查文件是否成功打开
 	if (!out.is_open()) {
 		std::cerr << "can't open file " << filename << "\n";
 		out.close();
 		return false;
 	}
+
+	// 初始化TGA文件头结构体
 	TGA_Header header;
 	memset((void*)&header, 0, sizeof(header));
-	header.bitsperpixel = bytespp << 3;
-	header.width = width;
-	header.height = height;
+
+	// 设置文件头字段
+	header.bitsperpixel = bytespp << 3;  // 计算每像素位数（字节数×8）
+	header.width = width;                // 图像宽度
+	header.height = height;              // 图像高度
+
+	// 根据像素格式和压缩选项设置数据类型代码：
+	// - 灰度图：RLE编码为11，RAW编码为3
+	// - 彩色图：RLE编码为10，RAW编码为2
 	header.datatypecode = (bytespp == GRAYSCALE ? (rle ? 11 : 3) : (rle ? 10 : 2));
-	header.imagedescriptor = 0x20; // top-left origin
+
+	header.imagedescriptor = 0x20;       // 图像描述符（0x20表示原点在左上角）
+
+	// 写入文件头到输出流
 	out.write((char*)&header, sizeof(header));
 	if (!out.good()) {
 		out.close();
 		std::cerr << "can't dump the tga file\n";
 		return false;
 	}
+
+	// 根据编码格式写入图像数据
 	if (!rle) {
+		// RAW格式：直接写入原始像素数据
 		out.write((char*)data, width * height * bytespp);
 		if (!out.good()) {
 			std::cerr << "can't unload raw data\n";
@@ -222,35 +256,45 @@ bool TGAImage::write_tga_file(const char* filename, bool rle) {
 		}
 	}
 	else {
+		// RLE格式：使用RLE压缩算法写入数据
 		if (!unload_rle_data(out)) {
 			out.close();
 			std::cerr << "can't unload rle data\n";
 			return false;
 		}
 	}
+
+	// 写入开发区域引用（4字节0）
 	out.write((char*)developer_area_ref, sizeof(developer_area_ref));
 	if (!out.good()) {
 		std::cerr << "can't dump the tga file\n";
 		out.close();
 		return false;
 	}
+
+	// 写入扩展区域引用（4字节0）
 	out.write((char*)extension_area_ref, sizeof(extension_area_ref));
 	if (!out.good()) {
 		std::cerr << "can't dump the tga file\n";
 		out.close();
 		return false;
 	}
+
+	// 写入文件尾标识符
 	out.write((char*)footer, sizeof(footer));
 	if (!out.good()) {
 		std::cerr << "can't dump the tga file\n";
 		out.close();
 		return false;
 	}
+
+	// 关闭文件流并返回成功
 	out.close();
 	return true;
 }
 
 // TODO: it is not necessary to break a raw chunk for two equal pixels (for the matter of the resulting size)
+// TODO: 没有必要将一个原始块分割为两个相等的像素（就结果大小而言）。
 bool TGAImage::unload_rle_data(std::ofstream& out) {
 	const unsigned char max_chunk_length = 128;
 	unsigned long npixels = width * height;
@@ -334,19 +378,46 @@ bool TGAImage::flip_horizontally() {
 	return true;
 }
 
+/**
+ * @brief 垂直翻转TGA图像
+ *
+ * 该函数通过交换图像上半部分和下半部分的像素行来实现垂直翻转。
+ * 使用中间缓冲区逐行交换，确保图像数据正确翻转。
+ *
+ * @return true 翻转成功
+ * @return false 翻转失败（图像数据不存在）
+ */
 bool TGAImage::flip_vertically() {
+	// 检查图像数据是否存在
 	if (!data) return false;
+
+	// 计算每行的字节数（宽度×每像素字节数）
 	unsigned long bytes_per_line = width * bytespp;
+
+	// 创建临时行缓冲区用于交换操作
 	unsigned char* line = new unsigned char[bytes_per_line];
-	int half = height >> 1;
+
+	// 计算需要交换的行数（高度的一半）
+	int half = height >> 1; // 右移1位等价于除以2
+
+	// 遍历上半部分的所有行
 	for (int j = 0; j < half; j++) {
-		unsigned long l1 = j * bytes_per_line;
-		unsigned long l2 = (height - 1 - j) * bytes_per_line;
+		// 计算当前行和对应下半部分行的起始位置
+		unsigned long l1 = j * bytes_per_line;          // 当前行偏移
+		unsigned long l2 = (height - 1 - j) * bytes_per_line; // 对称行偏移
+
+		// 交换三步骤：
+		// 1. 将当前行保存到临时缓冲区
 		memmove((void*)line, (void*)(data + l1), bytes_per_line);
+		// 2. 将对称行复制到当前行位置
 		memmove((void*)(data + l1), (void*)(data + l2), bytes_per_line);
+		// 3. 将临时缓冲区中的原当前行复制到对称行位置
 		memmove((void*)(data + l2), (void*)line, bytes_per_line);
 	}
+
+	// 释放临时行缓冲区
 	delete[] line;
+
 	return true;
 }
 
