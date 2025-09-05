@@ -1,6 +1,5 @@
 #include "tinyrenderer.h"
 
-
 #include <vector>
 #include <cmath>
 #include <cstdlib>
@@ -48,243 +47,167 @@ void TinyRenderer::line(int x0, int y0, int x1, int y1, TGAImage& image, TGAColo
     }
 }
 
-
-/// <summary>
-/// 计算三角形得重心
-/// </summary>
-/// <param name="pts"></param>
-/// <param name="P"></param>
-/// <returns></returns>
-Vec3f TinyRenderer::barycentric(Vec2i* pts, Vec2i P) {
-
-    Vec3f u = Vec3f(pts[2].raw[0] - pts[0].raw[0], pts[1].raw[0] - pts[0].raw[0], pts[0].raw[0] - P.raw[0]) ^ Vec3f(pts[2].raw[1] - pts[0].raw[1], pts[1].raw[1] - pts[0].raw[1], pts[0].raw[1] - P.raw[1]);
-    /* `pts` and `P` has integer value as coordinates
-       so `abs(u[2])` < 1 means `u[2]` is 0, that means
-       triangle is degenerate, in this case return something with negative coordinates */
-    if (std::abs(u.z) < 1) return Vec3f(-1, 1, 1);
-    return Vec3f(1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
+/**
+ * 计算带符号的三角形面积（实际是2倍面积，带符号）
+ * 利用鞋带公式的变体，返回值为实际面积的2倍，符号表示顶点顺序（顺时针/逆时针）
+ */
+double TinyRenderer::signed_triangle_area(int ax, int ay, int bx, int by, int cx, int cy) {
+    return .5 * ((by - ay) * (bx + ax) + (cy - by) * (cx + bx) + (ay - cy) * (ax + cx));
 }
 
+/**
+ * 在帧缓冲器中绘制填充三角形
+ * 使用重心坐标法进行光栅化，支持背面剔除
+ */
+void TinyRenderer::triangle(int ax, int ay, int bx, int by, int cx, int cy, TGAImage& framebuffer, TGAColor color) {
+    // 计算三角形的包围盒（最小矩形区域）
+    int bbminx = std::min({ax, bx, cx}); // 包围盒左上角x坐标
+    int bbminy = std::min({ay, by, cy}); // 包围盒左上角y坐标
+    int bbmaxx = std::max({ax, bx, cx}); // 包围盒右下角x坐标
+    int bbmaxy = std::max({ay, by, cy}); // 包围盒右下角y坐标
 
-/// <summary>
-/// 绘制填充三角形，重心
-/// </summary>
-/// <param name="pts"></param>
-/// <param name="image"></param>
-/// <param name="color"></param>
-void TinyRenderer::triangle(Vec2i* pts, TGAImage& image, TGAColor color) {
-    Vec2i bboxmin(image.get_width() - 1, image.get_height() - 1);
-    Vec2i bboxmax(0, 0);
-    Vec2i clamp(image.get_width() - 1, image.get_height() - 1);
-    for (int i = 0; i < 3; i++) {
-        bboxmin.x = std::max(0, std::min(bboxmin.x, pts[i].x));
-        bboxmin.y = std::max(0, std::min(bboxmin.y, pts[i].y));
+    // 计算整个三角形的有符号面积（实际是2倍面积）
+    double total_area = signed_triangle_area(ax, ay, bx, by, cx, cy);
 
-        bboxmax.x = std::min(clamp.x, std::max(bboxmax.x, pts[i].x));
-        bboxmax.y = std::min(clamp.y, std::max(bboxmax.y, pts[i].y));
-    }
-    Vec2i P;
-    for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
-        for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-            Vec3f bc_screen = barycentric(pts, P);
-            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
-            image.set(P.x, P.y, color);
+    // 背面剔除：如果面积为负（顺时针顺序）或面积太小（小于1像素），则不绘制
+    if (total_area < 1) return;
+
+    // 使用OpenMP并行化加速像素处理
+#pragma omp parallel for
+// 遍历包围盒内的所有像素
+    for (int x = bbminx; x <= bbmaxx; x++) {
+        for (int y = bbminy; y <= bbmaxy; y++) {
+            // 计算当前像素相对于三角形的三个重心坐标
+            double alpha = signed_triangle_area(x, y, bx, by, cx, cy) / total_area;
+            double beta = signed_triangle_area(x, y, cx, cy, ax, ay) / total_area;
+            double gamma = signed_triangle_area(x, y, ax, ay, bx, by) / total_area;
+
+            // 如果任一重心坐标为负，说明像素在三角形外
+            if (alpha < 0 || beta < 0 || gamma < 0) continue;
+
+            // 像素在三角形内，设置帧缓冲器中的颜色
+            framebuffer.set(x, y, color);
         }
     }
 }
 
-/// <summary>
-/// 绘制填充三角形， 扫线方法
-/// </summary>
-/// <param name="t0"></param>
-/// <param name="t1"></param>
-/// <param name="t2"></param>
-/// <param name="image"></param>
-/// <param name="color"></param>
-void TinyRenderer::triangle_scanline(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage& image, TGAColor color) {
-    if (t0.y == t1.y && t0.y == t2.y) return; // I dont care about degenerate triangles 
-    // sort the vertices, t0, t1, t2 lower−to−upper (bubblesort yay!) 
-    if (t0.y > t1.y) std::swap(t0, t1);
-    if (t0.y > t2.y) std::swap(t0, t2);
-    if (t1.y > t2.y) std::swap(t1, t2);
-    int total_height = t2.y - t0.y;
-    for (int i = 0; i < total_height; i++) {
-        bool second_half = i > t1.y - t0.y || t1.y == t0.y;
-        int segment_height = second_half ? t2.y - t1.y : t1.y - t0.y;
-        float alpha = (float)i / total_height;
-        float beta = (float)(i - (second_half ? t1.y - t0.y : 0)) / segment_height; // be careful: with above conditions no division by zero here 
-        Vec2i A = t0 + (t2 - t0) * alpha;
-        Vec2i B = second_half ? t1 + (t2 - t1) * beta : t0 + (t1 - t0) * beta;
-        if (A.x > B.x) std::swap(A, B);
-        for (int j = A.x; j <= B.x; j++) {
-            image.set(j, t0.y + i, color); // attention, due to int casts t0.y+i != A.y 
+void TinyRenderer::triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, TGAImage& framebuffer) {
+    int bbminx = std::min({ax, bx, cx}); // bounding box for the triangle
+    int bbminy = std::min({ay, by, cy}); // defined by its top left and bottom right corners
+    int bbmaxx = std::max({ax, bx, cx});
+    int bbmaxy = std::max({ay, by, cy});
+    double total_area = signed_triangle_area(ax, ay, bx, by, cx, cy);
+    if (total_area < 1) return; // backface culling + discarding triangles that cover less than a pixel
+
+#pragma omp parallel for
+    for (int x = bbminx; x <= bbmaxx; x++) {
+        for (int y = bbminy; y <= bbmaxy; y++) {
+            double alpha = signed_triangle_area(x, y, bx, by, cx, cy) / total_area;
+            double beta = signed_triangle_area(x, y, cx, cy, ax, ay) / total_area;
+            double gamma = signed_triangle_area(x, y, ax, ay, bx, by) / total_area;
+            if (alpha < 0 || beta < 0 || gamma < 0) continue; // negative barycentric coordinate => the pixel is outside the triangle
+            unsigned char z = static_cast<unsigned char>(alpha * az + beta * bz + gamma * cz);
+            framebuffer.set(x, y, { z });
         }
     }
 }
 
-/// <summary>
-/// 三维空间三角形的重心
-/// </summary>
-/// <param name="A"></param>
-/// <param name="B"></param>
-/// <param name="C"></param>
-/// <param name="P"></param>
-/// <returns></returns>
-Vec3f TinyRenderer::barycentric(Vec3f A, Vec3f B, Vec3f C, Vec3f P) {
-    Vec3f s[2];
-    for (int i = 1; i >= 0; i--) {
-        s[i].x = C.raw[i] - A.raw[i];
-        s[i].y = B.raw[i] - A.raw[i];
-        s[i].z = A.raw[i] - P.raw[i];
-    }
-    Vec3f u = s[0] ^ s[1];
-    if (std::abs(u.raw[2]) > 1e-2) // dont forget that u[2] is integer. If it is zero then triangle ABC is degenerate,不要忘记u[2]是一个整数。如果它是零，那么三角形ABC是简并的
-        return Vec3f(1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
-    return Vec3f(-1, 1, 1); // in this case generate negative coordinates, it will be thrown away by the rasterizator,在这种情况下生成负坐标，它将被栅格化器丢弃
-}
 
-/// <summary>
-/// 绘制三维空间的三角形
-/// </summary>
-/// <param name="pts"></param>
-/// <param name="zbuffer"></param>
-/// <param name="image"></param>
-/// <param name="color"></param>
-void TinyRenderer::triangle(Vec3f* pts, float* zbuffer, TGAImage& image, TGAColor color) {
-    Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-    Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
-    Vec2f clamp(image.get_width() - 1, image.get_height() - 1);
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 2; j++) {
-            bboxmin.raw[j] = std::max(0.f, std::min(bboxmin.raw[j], pts[i].raw[j]));
-            bboxmax.raw[j] = std::min(clamp.raw[j], std::max(bboxmax.raw[j], pts[i].raw[j]));
+//==============================================SDL_Renderer==========================================================
+
+
+/**
+ * 在帧缓冲器中绘制填充三角形
+ * 使用重心坐标法进行光栅化，支持背面剔除
+ */
+void TinyRenderer::triangle(int ax, int ay, int bx, int by, int cx, int cy, SDL_Renderer* renderer, TGAColor color) {
+    // 计算三角形的包围盒（最小矩形区域）
+    int bbminx = std::min({ ax, bx, cx }); // 包围盒左上角x坐标
+    int bbminy = std::min({ ay, by, cy }); // 包围盒左上角y坐标
+    int bbmaxx = std::max({ ax, bx, cx }); // 包围盒右下角x坐标
+    int bbmaxy = std::max({ ay, by, cy }); // 包围盒右下角y坐标
+
+    // 计算整个三角形的有符号面积（实际是2倍面积）
+    double total_area = signed_triangle_area(ax, ay, bx, by, cx, cy);
+
+    // 背面剔除：如果面积为负（顺时针顺序）或面积太小（小于1像素），则不绘制
+    if (total_area < 1) return;
+
+    // 使用OpenMP并行化加速像素处理
+#pragma omp parallel for
+// 遍历包围盒内的所有像素
+    for (int x = bbminx; x <= bbmaxx; x++) {
+        for (int y = bbminy; y <= bbmaxy; y++) {
+            // 计算当前像素相对于三角形的三个重心坐标
+            double alpha = signed_triangle_area(x, y, bx, by, cx, cy) / total_area;
+            double beta = signed_triangle_area(x, y, cx, cy, ax, ay) / total_area;
+            double gamma = signed_triangle_area(x, y, ax, ay, bx, by) / total_area;
+
+            // 如果任一重心坐标为负，说明像素在三角形外
+            if (alpha < 0 || beta < 0 || gamma < 0) continue;
+
+            SDL_SetRenderDrawColor(renderer, color[0], color[1],color[2],color[3]);
+            // 像素在三角形内，设置帧缓冲器中的颜色
+            SDL_RenderDrawPoint(renderer, x, y);
         }
     }
-    Vec3f P;
-    for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
-        for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-            Vec3f bc_screen = barycentric(pts[0], pts[1], pts[2], P);
-            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
-            P.z = 0;
-            for (int i = 0; i < 3; i++) P.z += pts[i].raw[2] * bc_screen.raw[i];
-            if (zbuffer[int(P.x + P.y * ScreenWidth)] < P.z) {
-                zbuffer[int(P.x + P.y * ScreenWidth)] = P.z;
-                image.set(P.x, P.y, color);
+}
+
+
+void TinyRenderer::triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, SDL_Renderer* renderer, float* zbuffer) {
+    int bbminx = std::min({ax, bx, cx}); // bounding box for the triangle
+    int bbminy = std::min({ay, by, cy}); // defined by its top left and bottom right corners
+    int bbmaxx = std::max({ax, bx, cx});
+    int bbmaxy = std::max({ay, by, cy});
+    double total_area = signed_triangle_area(ax, ay, bx, by, cx, cy);
+    if (total_area < 1) return; // backface culling + discarding triangles that cover less than a pixel
+
+    //SDL_SetRenderDrawColor(renderer, std::rand() % 255, std::rand() % 255, std::rand() % 255, 255); // 设置颜色
+#pragma omp parallel for
+    for (int x = bbminx; x <= bbmaxx; x++) {
+        for (int y = bbminy; y <= bbmaxy; y++) {
+            double alpha = signed_triangle_area(x, y, bx, by, cx, cy) / total_area;
+            double beta = signed_triangle_area(x, y, cx, cy, ax, ay) / total_area;
+            double gamma = signed_triangle_area(x, y, ax, ay, bx, by) / total_area;
+            if (alpha < 0 || beta < 0 || gamma < 0) continue; // negative barycentric coordinate => the pixel is outside the triangle
+            unsigned char z = static_cast<unsigned char>(alpha * az + beta * bz + gamma * cz);
+            //framebuffer.set(x, y, { z });
+            //TGAColor color = { alpha * az, beta * bz, gamma * cz, 255};
+
+            if (zbuffer[int(x + y * ScreenWidth)] < z) {
+                zbuffer[int(x + y * ScreenWidth)] = z;
+
+                SDL_SetRenderDrawColor(renderer, z, z, z, 255); // 设置颜色
+                SDL_RenderDrawPoint(renderer, x, y);     //绘制点
             }
-        }
-    }
-}
 
-//////////////////////////////////////////////////////////使用SDL绘制图像///////////////////////////////////////////////////////////
-
-/// <summary>
-/// 绘制一条直线
-/// </summary>
-/// <param name="x0"></param>
-/// <param name="y0"></param>
-/// <param name="x1"></param>
-/// <param name="y1"></param>
-/// <param name="image"></param>
-/// <param name="color"></param>
-void TinyRenderer::line(int x0, int y0, int x1, int y1, SDL_Renderer* renderer, TGAColor color) {
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a); // 设置颜色
-    bool steep = false;
-    if (std::abs(x0 - x1) < std::abs(y0 - y1)) {
-        std::swap(x0, y0);
-        std::swap(x1, y1);
-        steep = true;
-    }
-    if (x0 > x1) {
-        std::swap(x0, x1);
-        std::swap(y0, y1);
-    }
-    int dx = x1 - x0;
-    int dy = y1 - y0;
-    int derror2 = std::abs(dy) * 2;
-    int error2 = 0;
-    int y = y0;
-    const int yincr = (y1 > y0 ? 1 : -1);
-    for (int x = x0; x <= x1; x++) {
-        if (steep) {
-            SDL_RenderDrawPoint(renderer, x, y);     //绘制点
-            //image.set(y, x, color);
-        }
-        else {
-            SDL_RenderDrawPoint(renderer, y, x);     //绘制点
-            /*image.set(x, y, color);*/
-        }
-        error2 += derror2;
-        if (error2 > dx) {
-            y += yincr;
-            error2 -= dx * 2;
         }
     }
 }
 
 
-/// <summary>
-/// 绘制填充三角形，重心
-/// </summary>
-/// <param name="pts"></param>
-/// <param name="image"></param>
-/// <param name="color"></param>
-void TinyRenderer::triangle(Vec2i* pts, SDL_Renderer* renderer, TGAColor color) {
 
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a); // 设置颜色
-    Vec2i bboxmin(ScreenWidth - 1, ScreenHeight - 1);
-    Vec2i bboxmax(0, 0);
-    Vec2i clamp(ScreenWidth - 1, ScreenHeight - 1);
-    for (int i = 0; i < 3; i++) {
-        bboxmin.x = std::max(0, std::min(bboxmin.x, pts[i].x));
-        bboxmin.y = std::max(0, std::min(bboxmin.y, pts[i].y));
 
-        bboxmax.x = std::min(clamp.x, std::max(bboxmax.x, pts[i].x));
-        bboxmax.y = std::min(clamp.y, std::max(bboxmax.y, pts[i].y));
-    }
-    Vec2i P;
-    for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
-        for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-            Vec3f bc_screen = barycentric(pts, P);
-            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
-            SDL_RenderDrawPoint(renderer, P.x, P.y);     //绘制点，以屏幕左下角为基点
-            //image.set(P.x, P.y, color);
-        }
-    }
 
+
+
+
+
+
+// 叉乘公式：a × b = (ay*bz - az*by, az*bx - ax*bz, ax*by - ay*bx)
+vec3 TinyRenderer::cross(const vec4& a, const vec4& b) {
+    return vec3{
+        a.y * b.z - a.z * b.y,  // x分量
+        a.z * b.x - a.x * b.z,  // y分量  
+        a.x * b.y - a.y * b.x   // z分量
+    };
 }
-
-
-/// <summary>
-/// 绘制填充三角形， 扫线方法
-/// </summary>
-/// <param name="t0"></param>
-/// <param name="t1"></param>
-/// <param name="t2"></param>
-/// <param name="image"></param>
-/// <param name="color"></param>
-void TinyRenderer::triangle_scanline(Vec2i t0, Vec2i t1, Vec2i t2,SDL_Renderer* renderer, TGAColor color) {
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a); // 设置颜色
-    if (t0.y == t1.y && t0.y == t2.y) return; // I dont care about degenerate triangles 
-    // sort the vertices, t0, t1, t2 lower−to−upper (bubblesort yay!) 
-    if (t0.y > t1.y) std::swap(t0, t1);
-    if (t0.y > t2.y) std::swap(t0, t2);
-    if (t1.y > t2.y) std::swap(t1, t2);
-    int total_height = t2.y - t0.y;
-    for (int i = 0; i < total_height; i++) {
-        bool second_half = i > t1.y - t0.y || t1.y == t0.y;
-        int segment_height = second_half ? t2.y - t1.y : t1.y - t0.y;
-        float alpha = (float)i / total_height;
-        float beta = (float)(i - (second_half ? t1.y - t0.y : 0)) / segment_height; // be careful: with above conditions no division by zero here 
-        Vec2i A = t0 + (t2 - t0) * alpha;
-        Vec2i B = second_half ? t1 + (t2 - t1) * beta : t0 + (t1 - t0) * beta;
-        if (A.x > B.x) std::swap(A, B);
-        for (int j = A.x; j <= B.x; j++) {
-            SDL_RenderDrawPoint(renderer, j, t0.y + i);     //绘制点
-            //image.set(j, t0.y + i, color); // attention, due to int casts t0.y+i != A.y 
-        }
-    }
+// 重心坐标
+vec3 TinyRenderer::barycentric(vec3* pts, vec3 P) {
+    vec3 u = cross(vec4{ pts[2][0] - pts[0][0], pts[1][0] - pts[0][0], pts[0][0] - P[0] }, vec4{ pts[2][1] - pts[0][1], pts[1][1] - pts[0][1], pts[0][1] - P[1] });
+    if (std::abs(u.z) < 1) return vec3{ -1., 1., 1. };
+    return vec3{ 1.f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z };
 }
-
 
 
 /// <summary>
@@ -294,28 +217,28 @@ void TinyRenderer::triangle_scanline(Vec2i t0, Vec2i t1, Vec2i t2,SDL_Renderer* 
 /// <param name="zbuffer"></param>
 /// <param name="image"></param>
 /// <param name="color"></param>
-void TinyRenderer::triangle(Vec3f* pts, float* zbuffer, SDL_Renderer* renderer, TGAColor color) {
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a); // 设置颜色
-    Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-    Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
-    Vec2f clamp(ScreenWidth - 1, ScreenHeight - 1);
+void TinyRenderer::triangle(vec3* pts, float* zbuffer, SDL_Renderer* renderer, TGAColor color) {
+    vec2 bboxmin{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+    vec2 bboxmax{ -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
+    vec2 clamp{ ScreenWidth - 1, ScreenHeight - 1 };
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 2; j++) {
-            bboxmin.raw[j] = std::max(0.f, std::min(bboxmin.raw[j], pts[i].raw[j]));
-            bboxmax.raw[j] = std::min(clamp.raw[j], std::max(bboxmax.raw[j], pts[i].raw[j]));
+            bboxmin[j] = std::max(static_cast < double>(0.f), std::min(bboxmin[j], pts[i][j]));
+            bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
         }
     }
-    Vec3f P;
+    vec3 P;
     for (P.x = bboxmin.x; P.x <= bboxmax.x; P.x++) {
         for (P.y = bboxmin.y; P.y <= bboxmax.y; P.y++) {
-            Vec3f bc_screen = barycentric(pts[0], pts[1], pts[2], P);
+            vec3 bc_screen = barycentric(pts, P);
             if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
             P.z = 0;
-            for (int i = 0; i < 3; i++) P.z += pts[i].raw[2] * bc_screen.raw[i];
+            for (int i = 0; i < 3; i++) P.z += pts[i][2] * bc_screen[i];
             if (zbuffer[int(P.x + P.y * ScreenWidth)] < P.z) {
                 zbuffer[int(P.x + P.y * ScreenWidth)] = P.z;
+
+                SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], color[3]); // 设置颜色
                 SDL_RenderDrawPoint(renderer, P.x, P.y);     //绘制点
-                //image.set(P.x, P.y, color);
             }
         }
     }

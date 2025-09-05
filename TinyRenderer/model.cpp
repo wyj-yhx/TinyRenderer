@@ -1,124 +1,87 @@
-#include <iostream>
-#include <string>
 #include <fstream>
 #include <sstream>
-#include <vector>
 #include "model.h"
 
-/**
- * @brief Model类构造函数 - 从Wavefront OBJ文件加载3D模型
- *
- * 该构造函数读取OBJ文件格式的3D模型，解析顶点和面数据，
- * 支持标准的顶点(v)和面(f)定义格式
- *
- * @param filename OBJ模型文件路径
- */
-Model::Model(const char* filename) : verts_(), faces_(), max(1.f){
-    // 打开文件流
+Model::Model(const std::string filename) {
     std::ifstream in;
     in.open(filename, std::ifstream::in);
-
-    // 检查文件是否成功打开
-    if (in.fail()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
-        return;
-    }
-
-    std::string line;  // 用于存储每行内容
-
-    // 逐行读取文件，直到文件结束
+    if (in.fail()) return;
+    std::string line;
     while (!in.eof()) {
         std::getline(in, line);
-        std::istringstream iss(line.c_str());  // 将行转换为字符串流便于解析
-        char trash;  // 用于丢弃不需要的字符
-
-        // 解析顶点行 (格式: "v x y z")
+        std::istringstream iss(line.c_str());
+        char trash;
         if (!line.compare(0, 2, "v ")) {
-            iss >> trash;  // 丢弃'v'字符
-
-            Vec3f v;  // 创建三维浮点向量存储顶点坐标
-
-            // 读取x, y, z三个坐标值
-            for (int i = 0; i < 3; i++) {
-                iss >> v.raw[i];
-                if (v.raw[i] > max) max = v.raw[i];
+            iss >> trash;
+            vec4 v = { 0,0,0,1 };
+            for (int i : {0, 1, 2}) { 
+                iss >> v[i];
+                maxH = std::max(maxH, v[i]);
             }
-
-            verts_.push_back(v);  // 将顶点添加到顶点列表
-        }// 解析顶点行 (格式: "v x y z")
+            verts.push_back(v);
+        }
+        else if (!line.compare(0, 3, "vn ")) {
+            iss >> trash >> trash;
+            vec4 n;
+            for (int i : {0, 1, 2}) iss >> n[i];
+            norms.push_back(normalized(n));
+        }
         else if (!line.compare(0, 3, "vt ")) {
-            iss >> trash;  // 丢弃'v'字符
-
-            Vec3f vt;  // 创建三维浮点向量存储顶点坐标
-
-            // 读取x, y, z三个坐标值
-            for (int i = 0; i < 3; i++) {
-                iss >> vt.raw[i];
-                if (vt.raw[i] > max) max = vt.raw[i];
-            }
-
-            vterts_.push_back(vt);  // 将顶点添加到顶点列表
+            iss >> trash >> trash;
+            vec2 uv;
+            for (int i : {0, 1}) iss >> uv[i];
+            tex.push_back({ uv.x, 1 - uv.y });
         }
-        // 解析面行 (格式: "f v1/vt1/vn1 v2/vt2/vn2 v3/vt3/vn3 ...")
         else if (!line.compare(0, 2, "f ")) {
-            std::vector<int> f;  // 存储面包含的顶点索引
-            std::vector<int> t;  // 存储纹理包含的顶点索引
-            int itrash, idx_f, idx_t;     // itrash用于丢弃纹理/法线索引，idx存储顶点索引
-
-            iss >> trash;  // 丢弃'f'字符
-
-            // 循环读取面的每个顶点定义
-            // OBJ格式中面定义通常为: 顶点索引/纹理坐标索引/法线索引
-            while (iss >> idx_f >> trash >> idx_t >> trash >> itrash) {
-                idx_f--;  // OBJ索引从1开始，转换为从0开始的C++索引
-                idx_t--;
-                f.push_back(idx_f);  // 将顶点索引添加到面中
-                t.push_back(idx_t);  // 将顶点索引添加到纹理中
+            int f, t, n, cnt = 0;
+            iss >> trash;
+            while (iss >> f >> trash >> t >> trash >> n) {
+                facet_vrt.push_back(--f);
+                facet_tex.push_back(--t);
+                facet_nrm.push_back(--n);
+                cnt++;
             }
-
-            faces_.push_back(f);  // 将面添加到面列表
-            texture_.push_back(t);  // 将面添加到纹理列表
+            if (3 != cnt) {
+                std::cerr << "Error: the obj file is supposed to be triangulated" << std::endl;
+                return;
+            }
         }
-        // 忽略其他类型的行（如纹理坐标vt、法线vn、材质mtl等）
     }
-
-    // 输出加载统计信息
-    std::cerr << "# V: " << verts_.size()
-        << " Vt: " << vterts_.size()
-        << " F: " << faces_.size()
-        << " T: " << texture_.size() << std::endl;
-
-    // 文件流会在作用域结束时自动关闭
+    std::cerr << "# v# " << nverts() << " f# " << nfaces() << std::endl;
+    auto load_texture = [&filename](const std::string suffix, TGAImage& img) {
+        size_t dot = filename.find_last_of(".");
+        if (dot == std::string::npos) return;
+        std::string texfile = filename.substr(0, dot) + suffix;
+        std::cerr << "texture file " << texfile << " loading " << (img.read_tga_file(texfile.c_str()) ? "ok" : "failed") << std::endl;
+        };
+    load_texture("_diffuse.tga", diffusemap);
+    load_texture("_nm_tangent.tga", normalmap);
+    load_texture("_spec.tga", specularmap);
 }
 
-Model::~Model() {
+int Model::nverts() const { return verts.size(); }
+int Model::nfaces() const { return facet_vrt.size() / 3; }
+
+vec4 Model::vert(const int i) const {
+    return verts[i];
 }
 
-int Model::nverts() {
-    return (int)verts_.size();
-}
-int Model::nvterts() {
-    return (int)vterts_.size();
-}
-int Model::nfaces() {
-    return (int)faces_.size();
+vec4 Model::vert(const int iface, const int nthvert) const {
+    return verts[facet_vrt[iface * 3 + nthvert]];
 }
 
-int Model::ntexture() {
-    return (int)texture_.size();
+vec4 Model::normal(const int iface, const int nthvert) const {
+    return norms[facet_nrm[iface * 3 + nthvert]];
 }
 
-
-Vec3f Model::vert(int i) {
-    return verts_[i];
-}
-Vec3f Model::vtert(int i) {
-    return vterts_[i];
-}
-std::vector<int> Model::face(int idx) {
-    return faces_[idx];
+vec4 Model::normal(const vec2& uv) const {
+    TGAColor c = normalmap.get(uv[0] * normalmap.width(), uv[1] * normalmap.height());
+    return normalized(vec4{ (double)c[2],(double)c[1],(double)c[0],0 }*2. / 255. - vec4{ 1,1,1,0 });
 }
 
-std::vector<int> Model::texture(int idx) {
-    return texture_[idx];
+vec2 Model::uv(const int iface, const int nthvert) const {
+    return tex[facet_tex[iface * 3 + nthvert]];
 }
+
+const TGAImage& Model::diffuse()  const { return diffusemap; }
+const TGAImage& Model::specular() const { return specularmap; }
