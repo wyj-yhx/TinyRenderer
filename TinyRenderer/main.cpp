@@ -60,10 +60,17 @@ void ShowTriangle_3D(Model* model, int minSize, SDL_Renderer* renderer, TinyRend
 	}
 }
 
+vec4 rot(vec4 v) {
+	/*constexpr */
+	double a = M_PI / 6;
+	mat<4, 4> Ry = { {{std::cos(a), 0, std::sin(a)}, {0,1,0}, {-std::sin(a), 0, std::cos(a)}} };
+	return Ry * v;
+}
+
 vec4 project(vec4 v) { // First of all, (x,y) is an orthogonal projection of the vector (x,y,z).
 	return vec4{ (v.x / model->GetMaxH()) * ScreenHeight / 2,       // Second, since the input models are scaled to have fit in the [-1,1]^3 world coordinates,
 			 (v.y / model->GetMaxH()) * ScreenHeight / 2,    // we want to shift the vector (x,y) and then scale it to span the entire screen.
-			 ((v.z / model->GetMaxH()) + 1.) * 255. };
+			 ((v.z / model->GetMaxH()) + 1.) * 255. / 2};
 }
 
 void ShowModel(SDL_Renderer* renderer)
@@ -71,9 +78,9 @@ void ShowModel(SDL_Renderer* renderer)
 	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 
 	for (int i = 0; i < model->nfaces(); i++) { // iterate through all triangles
-		vec4 a = project(model->vert(i, 2));
-		vec4 b = project(model->vert(i, 1));
-		vec4 c = project(model->vert(i, 0));
+		vec4 a = project(rot(model->vert(i, 2)));
+		vec4 b = project(rot(model->vert(i, 1)));
+		vec4 c = project(rot(model->vert(i, 0)));
 		TGAColor rnd;
 		for (int c = 0; c < 3; c++) rnd[c] = std::rand() % 255;
 		/*rendererfunc.triangle(
@@ -93,8 +100,8 @@ void ShowModel(SDL_Renderer* renderer)
 /// 初始化设置
 void Init()
 {
-	//model = new Model("../obj/african_head/african_head.obj");
-	model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
+	model = new Model("../obj/african_head/african_head.obj");
+	//model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
 	zbuffer = new float[ScreenWidth * ScreenHeight];
 }
 

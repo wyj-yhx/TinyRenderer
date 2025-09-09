@@ -172,12 +172,13 @@ void TinyRenderer::triangle(int ax, int ay, int az, int bx, int by, int bz, int 
             if (alpha < 0 || beta < 0 || gamma < 0) continue; // negative barycentric coordinate => the pixel is outside the triangle
             unsigned char z = static_cast<unsigned char>(alpha * az + beta * bz + gamma * cz);
             //framebuffer.set(x, y, { z });
-            //TGAColor color = { alpha * az, beta * bz, gamma * cz, 255};
+            TGAColor color = { alpha * az, beta * bz, gamma * cz, 255};
 
             if (zbuffer[int(x + y * ScreenWidth)] < z) {
                 zbuffer[int(x + y * ScreenWidth)] = z;
 
                 SDL_SetRenderDrawColor(renderer, z, z, z, 255); // 设置颜色
+                //SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], 255); // 设置颜色
                 SDL_RenderDrawPoint(renderer, x, y);     //绘制点
             }
 
