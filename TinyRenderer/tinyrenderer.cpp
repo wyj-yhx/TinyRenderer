@@ -112,6 +112,29 @@ void TinyRenderer::triangle(int ax, int ay, int az, int bx, int by, int bz, int 
     }
 }
 
+void TinyRenderer::rasterize(const vec4 clip[3], std::vector<double>& zbuffer, TGAImage& framebuffer, const TGAColor color) {
+    vec4 ndc[3] = { clip[0] / clip[0].w, clip[1] / clip[1].w, clip[2] / clip[2].w };                // normalized device coordinates
+    vec2 screen[3] = { (Viewport * ndc[0]).xy(), (Viewport * ndc[1]).xy(), (Viewport * ndc[2]).xy() }; // screen coordinates
+
+    mat<3, 3> ABC = { { {screen[0].x, screen[0].y, 1.}, {screen[1].x, screen[1].y, 1.}, {screen[2].x, screen[2].y, 1.} } };
+    if (ABC.det() < 1) return; // backface culling + discarding triangles that cover less than a pixel
+    int bbminx = std::min({ screen[0].x, screen[1].x, screen[2].x }); // bounding box for the triangle
+    int bbminy = std::min({ screen[0].y, screen[1].y, screen[2].y }); // defined by its top left and bottom right corners
+    int bbmaxx = std::max({ screen[0].x, screen[1].x, screen[2].x });
+    int bbmaxy = std::max({ screen[0].y, screen[1].y, screen[2].y });
+#pragma omp parallel for
+    for (int x = std::max<int>(bbminx, 0); x <= std::min<int>(bbmaxx, framebuffer.width() - 1); x++) { // clip the bounding box by the screen
+        for (int y = std::max<int>(bbminy, 0); y <= std::min<int>(bbmaxy, framebuffer.height() - 1); y++) {
+            vec3 bc = ABC.invert_transpose() * vec3 { static_cast<double>(x), static_cast<double>(y), 1. }; // barycentric coordinates of {x,y} w.r.t the triangle
+            if (bc.x < 0 || bc.y < 0 || bc.z < 0) continue;                                                    // negative barycentric coordinate => the pixel is outside the triangle
+            double z = bc * vec3{ ndc[0].z, ndc[1].z, ndc[2].z };
+            if (z <= zbuffer[x + y * framebuffer.width()]) continue;
+            zbuffer[x + y * framebuffer.width()] = z;
+            framebuffer.set(x, y, color);
+        }
+    }
+}
+
 
 //==============================================SDL_Renderer==========================================================
 
@@ -186,7 +209,34 @@ void TinyRenderer::triangle(int ax, int ay, int az, int bx, int by, int bz, int 
     }
 }
 
+// 将三角形栅格化
+void TinyRenderer::rasterize(const vec4 clip[3], std::vector<double>& zbuffer, SDL_Renderer* renderer, const TGAColor color) {
+    //vec4 ndc[3] = { clip[0] / clip[0].w, clip[1] / clip[1].w, clip[2] / clip[2].w };                // normalized device coordinates归一化设备坐标
+    vec4 ndc[3] = { clip[2] / clip[2].w, clip[1] / clip[1].w, clip[0] / clip[0].w };                // 坐标系不同，需要反向
+    vec2 screen[3] = { (Viewport * ndc[0]).xy(), (Viewport * ndc[1]).xy(), (Viewport * ndc[2]).xy() }; // screen coordinates屏幕坐标
 
+    mat<3, 3> ABC = { { {screen[0].x, screen[0].y, 1.}, {screen[1].x, screen[1].y, 1.}, {screen[2].x, screen[2].y, 1.} } };
+    if (ABC.det() < 1) return; // backface culling + discarding triangles that cover less than a pixel背景剔除+丢弃覆盖小于一个像素的三角形
+    int bbminx = std::min({ screen[0].x, screen[1].x, screen[2].x }); // bounding box for the triangle三角形的边界框
+    int bbminy = std::min({ screen[0].y, screen[1].y, screen[2].y }); // defined by its top left and bottom right corners由其左上角和右下角定义
+    int bbmaxx = std::max({ screen[0].x, screen[1].x, screen[2].x });
+    int bbmaxy = std::max({ screen[0].y, screen[1].y, screen[2].y });
+
+    SDL_SetRenderDrawColor(renderer, color[0], color[1], color[2], 255); // 设置颜色
+
+#pragma omp parallel for
+    for (int x = std::max<int>(bbminx, 0); x <= std::min<int>(bbmaxx, ScreenWidth - 1); x++) { // clip the bounding box by the screen将边界框夹在屏幕上
+        for (int y = std::max<int>(bbminy, 0); y <= std::min<int>(bbmaxy, ScreenHeight - 1); y++) {
+            vec3 bc = ABC.invert_transpose() * vec3 { static_cast<double>(x), static_cast<double>(y), 1. }; // barycentric coordinates of {x,y} w.r.t the triangle{x，y}的质心坐标W.R.T这个三角形
+            if (bc.x < 0 || bc.y < 0 || bc.z < 0) continue;                                                    // negative barycentric coordinate => the pixel is outside the triangle负质心坐标=>像素在三角形外
+            double z = bc * vec3{ ndc[0].z, ndc[1].z, ndc[2].z };
+            if (z <= zbuffer[x + y * ScreenWidth]) continue;
+            zbuffer[x + y * ScreenWidth] = z;
+
+            SDL_RenderDrawPoint(renderer, x, y);     //绘制点
+        }
+    }
+}
 
 
 

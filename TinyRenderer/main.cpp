@@ -3,6 +3,7 @@
 #include "tgaimage.h"
 #include "tinyrenderer.h"
 #include "model.h"
+#include "wyj_gl.h"
 
 // SDL
 #include <SDL.h>
@@ -25,46 +26,96 @@ constexpr TGAColor purple = TGAColor{ 255, 0, 255, 255 };
 constexpr TGAColor cyan = TGAColor{ 0, 255, 255, 255 };
 
 
-Model* model;
 TinyRenderer rendererfunc;
 
-static const int ScreenWidth = 1280;
-static const int ScreenHeight = 720;
 
+static const int ScreenWidth = 800;
+static const int ScreenHeight = 800;
+
+// 定义4x4的矩阵
+//mat<4, 4> ModelView, Viewport, Perspective;
 
 vec3 light_dir{ 0, 0, -0.5 }; // define light_dir
-float* zbuffer;
+
+extern mat<4, 4> ModelView, Perspective; // "OpenGL" state matrices and
+extern std::vector<double> zbuffer;     // the depth buffer
+
+
+
+struct RandomShader : IShader {
+	const Model& model;
+	TGAColor color = {};
+	vec3 tri[3];  // triangle in eye coordinates
+
+	RandomShader(const Model& m) : model(m) {
+	}
+
+	virtual vec4 vertex(const int face, const int vert) {
+		vec4 v = model.vert(face, vert);                          // current vertex in object coordinates
+		vec4 gl_Position = ModelView * vec4{ v.x, -v.y, v.z, 1. };
+		tri[vert] = gl_Position.xyz();                            // in eye coordinates
+		return Perspective * gl_Position;                         // in clip coordinates
+	}
+
+	virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
+		return { false, color };                                    // do not discard the pixel
+	}
+};
+
+struct PhongShader : IShader {
+	const Model& model;
+	vec3 l;          // light direction in eye coordinates
+	vec3 tri[3];     // triangle in eye coordinates
+	vec3 varying_nrm[3]; // normal per vertex to be interpolated by the fragment
+
+	PhongShader(const vec3 light, const Model& m) : model(m) {
+		l = normalized((ModelView * vec4{ light.x, light.y, light.z, 0. }).xyz()); // transform the light vector to view coordinates
+	}
+
+	virtual vec4 vertex(const int face, const int vert) {
+		vec4 v = model.vert(face, vert);                          // current vertex in object coordinates
+		vec4 n = model.normal(face, vert);
+		varying_nrm[vert] = (ModelView.invert_transpose() * vec4 { n.x, n.y, n.z, 0. }).xyz();
+		vec4 gl_Position = ModelView * vec4{ v.x, -v.y, v.z, 1. };
+		tri[vert] = gl_Position.xyz();                            // in eye coordinates
+		return Perspective * gl_Position;                         // in clip coordinates
+	}
+
+	virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
+		TGAColor gl_FragColor = { 255, 255, 255, 255 };             // output color of the fragment
+		vec3 n = normalized(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);// per-vertex normal 
+		vec3 r = normalized(n * (n * l) * 2 - l);                   // reflected light direction
+		double ambient = .3;                                      // ambient light intensity
+		double diff = std::max(0., n * l);                        // diffuse light intensity
+		double spec = std::pow(std::max(r.z, 0.), 35);            // specular intensity, note that the camera lies on the z-axis (in eye coordinates), therefore simple r.z, since (0,0,1)*(r.x, r.y, r.z) = r.z
+		for (int channel : {0, 1, 2}){
+			gl_FragColor[channel] *= std::min(1., ambient + .4 * diff + .9 * spec);
+			cout << ambient << " | " << diff << " | " << l << " | " << endl;
+		}
+		return { false, gl_FragColor };                             // do not discard the pixel
+	}
+};
+
+Model* model;
+RandomShader* randomshader;
+PhongShader* phongshader;
+
 
 vec3 world2screen(vec4 v, int minSize) {
 	return vec3{((v.x / model->GetMaxH() + 1.) * minSize / 2. + .5), (ScreenHeight - (v.y / model->GetMaxH() + 1.) * minSize / 2. + .5), v.z};
 }
 
-void ShowTriangle_3D(Model* model, int minSize, SDL_Renderer* renderer, TinyRenderer& rendererfunc)
-{
-	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
-
-	for (int i = 0; i < model->nfaces(); i++) {
-		vec3 pts[3];
-		vec4 world_coords[3];
-		for (int j = 0; j < 3; j++) {
-			pts[j] = world2screen(model->vert(i,j), minSize);
-			vec4 v = model->vert(i, j);
-			world_coords[j] = v;
-		}
-		vec3 n = rendererfunc.cross((world_coords[2] - world_coords[0]), (world_coords[1] - world_coords[0]));
-		n = normalized(n);
-		float intensity = n * light_dir;
-		if (intensity > 0) {
-			rendererfunc.triangle(pts, zbuffer, renderer, TGAColor{ std::uint8_t(intensity * 255),  std::uint8_t(intensity * 255),  std::uint8_t(intensity * 255 ), 255 });
-		}
-	}
-}
 
 vec4 rot(vec4 v) {
 	/*constexpr */
 	double a = M_PI / 6;
-	mat<4, 4> Ry = { {{std::cos(a), 0, std::sin(a)}, {0,1,0}, {-std::sin(a), 0, std::cos(a)}} };
+	mat<4, 4> Ry = { {{std::cos(a), 0, std::sin(a),0}, {0,1,0,0}, {-std::sin(a), 0, std::cos(a),0}, {0,0,0,0} } };
 	return Ry * v;
+}
+
+vec4 persp(vec4 v) {
+	constexpr double c = 4.;
+	return v / (1 - v.z / c);
 }
 
 vec4 project(vec4 v) { // First of all, (x,y) is an orthogonal projection of the vector (x,y,z).
@@ -73,28 +124,22 @@ vec4 project(vec4 v) { // First of all, (x,y) is an orthogonal projection of the
 			 ((v.z / model->GetMaxH()) + 1.) * 255. / 2};
 }
 
-void ShowModel(SDL_Renderer* renderer)
+void ShowModel_1(SDL_Renderer* renderer)
 {
 	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 
 	for (int i = 0; i < model->nfaces(); i++) { // iterate through all triangles
-		vec4 a = project(rot(model->vert(i, 2)));
-		vec4 b = project(rot(model->vert(i, 1)));
-		vec4 c = project(rot(model->vert(i, 0)));
+		vec4 clip[3];
+		for (int d : {0, 1, 2}) {            // assemble the primitive
+			vec4 v = model->vert(i, d);
+			clip[d] = Perspective * ModelView * vec4{ v.x, -v.y, v.z, 1. };
+		}
 		TGAColor rnd;
 		for (int c = 0; c < 3; c++) rnd[c] = std::rand() % 255;
-		/*rendererfunc.triangle(
-			ScreenWidth / 2 + a.x, ScreenHeight / 2 - a.y, 
-			ScreenWidth / 2 + b.x, ScreenHeight / 2 - b.y, 
-			ScreenWidth / 2 + c.x, ScreenHeight / 2 - c.y, renderer, rnd);*/
-		rendererfunc.triangle(
-			ScreenWidth / 2 + a.x, ScreenHeight / 2 - a.y,a.z ,
-			ScreenWidth / 2 + b.x, ScreenHeight / 2 - b.y,b.z ,
-			ScreenWidth / 2 + c.x, ScreenHeight / 2 - c.y,c.z ,renderer, zbuffer);
+		rendererfunc.rasterize(clip, zbuffer, renderer, rnd); // rasterize the primitive
 	}
 
 }
-
 
 
 /// 初始化设置
@@ -102,8 +147,46 @@ void Init()
 {
 	model = new Model("../obj/african_head/african_head.obj");
 	//model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
-	zbuffer = new float[ScreenWidth * ScreenHeight];
+
+	zbuffer = std::vector<double>(ScreenWidth * ScreenHeight, -std::numeric_limits<double>::max());
+	
+	constexpr vec3  light{ 1, 1, 1 }; // light source
+	constexpr vec3    eye{ -1,0,2 }; // camera position 相机的位置
+	constexpr vec3 center{ 0,0,0 };  // camera direction 相机的方向
+	constexpr vec3     up{ 0,1,0 };  // camera up vector 相机向上矢量
+
+	randomshader = new RandomShader(*model);
+	phongshader = new PhongShader(light, *model);
+
+	//初始化矩阵
+	lookat(eye, center, up);                                   // build the ModelView   matrix
+	init_perspective(norm(eye - center));                        // build the Perspective matrix
+	init_viewport(ScreenWidth / 16, ScreenHeight / 16, ScreenWidth * 7 / 8, ScreenHeight * 7 / 8); // build the Viewport    matrix
+	init_zbuffer(ScreenWidth, ScreenHeight);
+	//TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
 }
+
+
+void Destory() {
+	delete model;
+	delete randomshader;
+	delete phongshader;
+}
+
+
+void ShowModel(SDL_Renderer* renderer)
+{
+	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
+
+	for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
+		randomshader->color = { (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), 255 };
+		Triangle clip = { randomshader->vertex(f, 0),  // assemble the primitive
+						  randomshader->vertex(f, 1),
+						  randomshader->vertex(f, 2) };
+		rasterize(clip, *randomshader, *renderer);   // rasterize the primitive
+	}
+}
+
 
 
 /// <summary>
@@ -113,6 +196,7 @@ void Init()
 void OnUpdate(float delta) {
 
 }
+
 
 /// <summary>
 /// 绘图
@@ -133,6 +217,8 @@ void OnRender(SDL_Renderer* renderer)
 	ShowModel(renderer);
 	//ShowTriangle_3D(model, 700, renderer, rendererfunc);
 }
+
+
 
 
 int main(int argc, char** argv)
@@ -212,8 +298,8 @@ int main(int argc, char** argv)
 	IMG_Quit();
 	SDL_Quit();
 
+	Destory();
+
 	return 0;
 }
-
-
 
