@@ -66,7 +66,7 @@ struct PhongShader : IShader {
 	const Model& model;
 	vec3 l;          // light direction in eye coordinates
 	vec3 tri[3];     // triangle in eye coordinates
-	vec3 varying_nrm[3]; // normal per vertex to be interpolated by the fragment
+	//vec3 varying_nrm[3]; // normal per vertex to be interpolated by the fragment
 
 	PhongShader(const vec3 light, const Model& m) : model(m) {
 		l = normalized((ModelView * vec4{ light.x, light.y, light.z, 0. }).xyz()); // transform the light vector to view coordinates
@@ -74,8 +74,8 @@ struct PhongShader : IShader {
 
 	virtual vec4 vertex(const int face, const int vert) {
 		vec4 v = model.vert(face, vert);                          // current vertex in object coordinates
-		vec4 n = model.normal(face, vert);
-		varying_nrm[vert] = (ModelView.invert_transpose() * vec4 { n.x, n.y, n.z, 0. }).xyz();
+		//vec4 n = model.normal(face, vert);
+		//varying_nrm[vert] = (ModelView.invert_transpose() * vec4 { n.x, n.y, n.z, 0. }).xyz();
 		vec4 gl_Position = ModelView * vec4{ v.x, -v.y, v.z, 1. };
 		tri[vert] = gl_Position.xyz();                            // in eye coordinates
 		return Perspective * gl_Position;                         // in clip coordinates
@@ -83,14 +83,15 @@ struct PhongShader : IShader {
 
 	virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
 		TGAColor gl_FragColor = { 255, 255, 255, 255 };             // output color of the fragment
-		vec3 n = normalized(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);// per-vertex normal 
+		vec3 n = normalized(cross(tri[2] - tri[0], tri[1] - tri[0]));// per-vertex normal 
+		//vec3 n = normalized(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);// per-vertex normal 
 		vec3 r = normalized(n * (n * l) * 2 - l);                   // reflected light direction
 		double ambient = .3;                                      // ambient light intensity
 		double diff = std::max(0., n * l);                        // diffuse light intensity
 		double spec = std::pow(std::max(r.z, 0.), 35);            // specular intensity, note that the camera lies on the z-axis (in eye coordinates), therefore simple r.z, since (0,0,1)*(r.x, r.y, r.z) = r.z
 		for (int channel : {0, 1, 2}){
 			gl_FragColor[channel] *= std::min(1., ambient + .4 * diff + .9 * spec);
-			cout << ambient << " | " << diff << " | " << l << " | " << endl;
+			//cout << ambient << " | " << diff << " | " << l << " | " << endl;
 		}
 		return { false, gl_FragColor };                             // do not discard the pixel
 	}
@@ -145,8 +146,8 @@ void ShowModel_1(SDL_Renderer* renderer)
 /// 初始化设置
 void Init()
 {
-	model = new Model("../obj/african_head/african_head.obj");
-	//model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
+	//model = new Model("../obj/african_head/african_head.obj");
+	model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
 
 	zbuffer = std::vector<double>(ScreenWidth * ScreenHeight, -std::numeric_limits<double>::max());
 	
@@ -155,15 +156,15 @@ void Init()
 	constexpr vec3 center{ 0,0,0 };  // camera direction 相机的方向
 	constexpr vec3     up{ 0,1,0 };  // camera up vector 相机向上矢量
 
-	randomshader = new RandomShader(*model);
-	phongshader = new PhongShader(light, *model);
-
 	//初始化矩阵
 	lookat(eye, center, up);                                   // build the ModelView   matrix
 	init_perspective(norm(eye - center));                        // build the Perspective matrix
 	init_viewport(ScreenWidth / 16, ScreenHeight / 16, ScreenWidth * 7 / 8, ScreenHeight * 7 / 8); // build the Viewport    matrix
 	init_zbuffer(ScreenWidth, ScreenHeight);
 	//TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
+
+	randomshader = new RandomShader(*model);
+	phongshader = new PhongShader(light, *model);
 }
 
 
@@ -179,11 +180,11 @@ void ShowModel(SDL_Renderer* renderer)
 	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 
 	for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
-		randomshader->color = { (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), 255 };
-		Triangle clip = { randomshader->vertex(f, 0),  // assemble the primitive
-						  randomshader->vertex(f, 1),
-						  randomshader->vertex(f, 2) };
-		rasterize(clip, *randomshader, *renderer);   // rasterize the primitive
+		//randomshader->color = { (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), 255 };
+		Triangle clip = { phongshader->vertex(f, 0),  // assemble the primitive
+						  phongshader->vertex(f, 1),
+						  phongshader->vertex(f, 2) };
+		rasterize(clip, *phongshader, *renderer);   // rasterize the primitive
 	}
 }
 
