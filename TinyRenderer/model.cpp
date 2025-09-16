@@ -48,10 +48,15 @@ Model::Model(const std::string filename) {
         }
     }
     std::cerr << "# v# " << nverts() << " f# " << nfaces() << std::endl;
+    // lamada函数
     auto load_texture = [&filename](const std::string suffix, TGAImage& img) {
+        // 查找filename中最后一个'.'的位置
         size_t dot = filename.find_last_of(".");
+        // 如果未找到'.'，则直接返回
         if (dot == std::string::npos) return;
+        // 截取filename中'.'之前的部分，并拼接上suffix
         std::string texfile = filename.substr(0, dot) + suffix;
+        // 尝试读取纹理文件，并输出加载结果
         std::cerr << "texture file " << texfile << " loading " << (img.read_tga_file(texfile.c_str()) ? "ok" : "failed") << std::endl;
         };
     load_texture("_diffuse.tga", diffusemap);

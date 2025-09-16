@@ -64,28 +64,48 @@ struct RandomShader : IShader {
 
 struct PhongShader : IShader {
 	const Model& model;
-	vec3 l;          // light direction in eye coordinates
-	vec3 tri[3];     // triangle in eye coordinates
-	//vec3 varying_nrm[3]; // normal per vertex to be interpolated by the fragment
+	//vec3 l;          // light direction in eye coordinates
+	//vec3 tri[3];     // triangle in eye coordinates
+	//vec3 varying_nrm[3]; // normal per vertex to be interpolated by the fragment 每个顶点的法线将被片段插值
+	/*****法线贴图******/
+	vec4 l;              // light direction in eye coordinates
+	vec2 varying_uv[3];  // triangle uv coordinates, written by the vertex shader, read
 
 	PhongShader(const vec3 light, const Model& m) : model(m) {
-		l = normalized((ModelView * vec4{ light.x, light.y, light.z, 0. }).xyz()); // transform the light vector to view coordinates
+		//l = normalized((ModelView * vec4{ light.x, light.y, light.z, 0. }).xyz()); // transform the light vector to view coordinates 将光向量转换为视图坐标
+		/*****法线贴图******/
+		l = normalized((ModelView * vec4{ light.x, light.y, light.z, 0. })); // transform the light vector to view coordinates
 	}
 
 	virtual vec4 vertex(const int face, const int vert) {
-		vec4 v = model.vert(face, vert);                          // current vertex in object coordinates
+		//vec4 v = model.vert(face, vert);                          // current vertex in object coordinates
+		/******平滑处理********/
 		//vec4 n = model.normal(face, vert);
 		//varying_nrm[vert] = (ModelView.invert_transpose() * vec4 { n.x, n.y, n.z, 0. }).xyz();
-		vec4 gl_Position = ModelView * vec4{ v.x, -v.y, v.z, 1. };
-		tri[vert] = gl_Position.xyz();                            // in eye coordinates
+		//vec4 gl_Position = ModelView * vec4{ v.x, -v.y, v.z, 1. };
+		//tri[vert] = gl_Position.xyz();                            // in eye coordinates
+		/*****法线贴图******/
+		varying_uv[vert] = model.uv(face, vert);
+		vec4 gl_Position = ModelView * model.vert(face, vert);
+		gl_Position.y = -gl_Position.y;
 		return Perspective * gl_Position;                         // in clip coordinates
 	}
 
 	virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
 		TGAColor gl_FragColor = { 255, 255, 255, 255 };             // output color of the fragment
-		vec3 n = normalized(cross(tri[2] - tri[0], tri[1] - tri[0]));// per-vertex normal 
+		//vec3 n = normalized(cross(tri[2] - tri[0], tri[1] - tri[0]));// per-vertex normal 添加光的反射
+		/******平滑处理********/
 		//vec3 n = normalized(varying_nrm[0] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[2] * bar[2]);// per-vertex normal 
-		vec3 r = normalized(n * (n * l) * 2 - l);                   // reflected light direction
+		// 将2，0反转，
+		//vec3 n = normalized(varying_nrm[2] * bar[0] + varying_nrm[1] * bar[1] + varying_nrm[0] * bar[2]);// per-vertex normal	
+		//vec3 r = normalized(n * (n * l) * 2 - l);                   // reflected light direction
+		/*****法线贴图******/ 
+		//vec2 uv = varying_uv[0] * bar[0] + varying_uv[1] * bar[1] + varying_uv[2] * bar[2];
+		// 将2，0反转，
+		vec2 uv = varying_uv[2] * bar[0] + varying_uv[1] * bar[1] + varying_uv[0] * bar[2];
+		vec4 n = normalized(ModelView.invert_transpose() * model.normal(uv));
+		vec4 r = normalized(n * (n * l) * 2 - l);                   // reflected light direction
+
 		double ambient = .3;                                      // ambient light intensity
 		double diff = std::max(0., n * l);                        // diffuse light intensity
 		double spec = std::pow(std::max(r.z, 0.), 35);            // specular intensity, note that the camera lies on the z-axis (in eye coordinates), therefore simple r.z, since (0,0,1)*(r.x, r.y, r.z) = r.z
@@ -148,6 +168,7 @@ void Init()
 {
 	//model = new Model("../obj/african_head/african_head.obj");
 	model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
+	//model = new Model("../obj/boggie/body.obj");
 
 	zbuffer = std::vector<double>(ScreenWidth * ScreenHeight, -std::numeric_limits<double>::max());
 	
