@@ -31,6 +31,8 @@ TinyRenderer rendererfunc;
 
 static const int ScreenWidth = 800;
 static const int ScreenHeight = 800;
+constexpr int shadoww = 8000;    // shadow map buffer size
+constexpr int shadowh = 8000;
 
 // 定义4x4的矩阵
 //mat<4, 4> ModelView, Viewport, Perspective;
@@ -59,6 +61,21 @@ struct RandomShader : IShader {
 
 	virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
 		return { false, color };                                    // do not discard the pixel
+	}
+};
+
+struct BlankShader : IShader {
+	const Model& model;
+
+	BlankShader(const Model& m) : model(m) {}
+
+	virtual vec4 vertex(const int face, const int vert) {
+		vec4 gl_Position = ModelView * model.vert(face, vert);
+		return Perspective * gl_Position;
+	}
+
+	virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
+		return { false, {255, 255, 255, 255} };
 	}
 };
 
@@ -144,7 +161,6 @@ struct PhongShader : IShader {
 		for (int channel : {0, 1, 2})
 			gl_FragColor[channel] = std::min<int>(255, gl_FragColor[channel] * (ambient + diffuse + specular));
 
-
 		return { false, gl_FragColor };                             // do not discard the pixel
 	}
 };
@@ -205,7 +221,7 @@ void Init()
 	zbuffer = std::vector<double>(ScreenWidth * ScreenHeight, -std::numeric_limits<double>::max());
 	
 	constexpr vec3  light{ 1, 1, 1 }; // light source
-	constexpr vec3    eye{ -1,0,2 }; // camera position 相机的位置
+	constexpr vec3    eye{ 1,1,-2 }; // camera position 相机的位置
 	constexpr vec3 center{ 0,0,0 };  // camera direction 相机的方向
 	constexpr vec3     up{ 0,1,0 };  // camera up vector 相机向上矢量
 

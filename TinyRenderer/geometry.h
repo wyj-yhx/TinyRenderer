@@ -96,6 +96,7 @@ template<int nrows, int ncols> struct mat {
         return dt<ncols>::det(*this);
     }
 
+    //代数余子式
     double cofactor(const int row, const int col) const {
         mat<nrows - 1, ncols - 1> submatrix;
         for (int i = nrows - 1; i--; )
@@ -104,7 +105,7 @@ template<int nrows, int ncols> struct mat {
     }
 
     mat<nrows, ncols> invert_transpose() const {
-        mat<nrows, ncols> adjugate_transpose; // transpose to ease determinant computation, check the last line
+        mat<nrows, ncols> adjugate_transpose; // transpose to ease determinant computation, check the last line  转置简化行列式计算，检查最后一行
         for (int i = nrows; i--; )
             for (int j = ncols; j--; adjugate_transpose[i][j] = cofactor(i, j));
         return adjugate_transpose / (adjugate_transpose[0] * rows[0]);
