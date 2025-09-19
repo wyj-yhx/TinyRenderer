@@ -1,5 +1,98 @@
-﻿  wyj_gl.cpp
+﻿  main.cpp
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\geometry.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  (编译源文件“main.cpp”)
+  
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\model.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  (编译源文件“main.cpp”)
+  
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.h(18,53): warning C4244: “参数”: 从“double”转换到“const int”，可能丢失数据
+  (编译源文件“main.cpp”)
+  
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.h(18,31): warning C4244: “参数”: 从“double”转换到“const int”，可能丢失数据
+  (编译源文件“main.cpp”)
+  
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(162,69): warning C4244: “参数”: 从“double”转换到“const _Ty”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(162,69): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(162,69): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(162,69): warning C4244:             _Ty=int
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(162,69): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(359,18): warning C4838: 从“uint8_t”转换到“double”需要收缩转换
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(359,24): warning C4838: 从“uint8_t”转换到“double”需要收缩转换
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\main.cpp(359,30): warning C4838: 从“uint8_t”转换到“double”需要收缩转换
+  model.cpp
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\model.cpp(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\model.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  (编译源文件“model.cpp”)
+  
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\geometry.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  (编译源文件“model.cpp”)
+  
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\model.cpp(69,46): warning C4267: “return”: 从“size_t”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\model.cpp(70,53): warning C4267: “return”: 从“size_t”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\model.cpp(85,65): warning C4244: “参数”: 从“double”转换到“const int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\model.cpp(85,38): warning C4244: “参数”: 从“double”转换到“const int”，可能丢失数据
+  tinyrenderer.cpp
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\geometry.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  (编译源文件“tinyrenderer.cpp”)
+  
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(121,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(121,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(121,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(121,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(121,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(122,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(122,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(122,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(122,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(122,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(123,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(123,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(123,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(123,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(123,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(124,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(124,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(124,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(124,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(124,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(198,38): warning C4838: 从“double”转换到“uint8_t”需要收缩转换
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(198,38): warning C4244: “初始化”: 从“double”转换到“uint8_t”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(198,49): warning C4838: 从“double”转换到“uint8_t”需要收缩转换
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(198,49): warning C4244: “初始化”: 从“double”转换到“uint8_t”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(198,61): warning C4838: 从“double”转换到“uint8_t”需要收缩转换
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(198,61): warning C4244: “初始化”: 从“double”转换到“uint8_t”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(220,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(220,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(220,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(220,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(220,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(221,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(221,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(221,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(221,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(221,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(222,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(222,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(222,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(222,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(222,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(223,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(223,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(223,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(223,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(223,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(274,29): warning C4838: 从“int”转换到“double”需要收缩转换
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(274,47): warning C4838: 从“int”转换到“double”需要收缩转换
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(289,58): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(292,53): warning C4244: “参数”: 从“double”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\tinyrenderer.cpp(292,48): warning C4244: “参数”: 从“double”转换到“int”，可能丢失数据
+  wyj_gl.cpp
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\geometry.h(1,1): warning C4819: 该文件包含不能在当前代码页(936)中表示的字符。请将该文件保存为 Unicode 格式以防止数据丢失
+  (编译源文件“wyj_gl.cpp”)
+  
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.h(18,53): warning C4244: “参数”: 从“double”转换到“const int”，可能丢失数据
   (编译源文件“wyj_gl.cpp”)
   
@@ -26,6 +119,11 @@ E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(40,16): warning C42
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(40,16): warning C4244:         [
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(40,16): warning C4244:             _Ty=double
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(40,16): warning C4244:         ]
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(70,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(70,16): warning C4244:         with
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(70,16): warning C4244:         [
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(70,16): warning C4244:             _Ty=double
+E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(70,16): warning C4244:         ]
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(71,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(71,16): warning C4244:         with
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(71,16): warning C4244:         [
@@ -41,14 +139,9 @@ E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(73,16): warning C42
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(73,16): warning C4244:         [
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(73,16): warning C4244:             _Ty=double
 E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(73,16): warning C4244:         ]
-E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(74,16): warning C4244: “初始化”: 从“_Ty”转换到“int”，可能丢失数据
-E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(74,16): warning C4244:         with
-E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(74,16): warning C4244:         [
-E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(74,16): warning C4244:             _Ty=double
-E:\MyFiles\TinyRenderer\TinyRenderer\TinyRenderer\wyj_gl.cpp(74,16): warning C4244:         ]
   正在生成代码
-  1 of 981 functions ( 0.1%) were compiled, the rest were copied from previous compilation.
-    0 functions were new in current compilation
-    3 functions had inline decision re-evaluated but remain unchanged
+  159 of 1096 functions (14.5%) were compiled, the rest were copied from previous compilation.
+    96 functions were new in current compilation
+    87 functions had inline decision re-evaluated but remain unchanged
   已完成代码的生成
   TinyRenderer.vcxproj -> E:\MyFiles\TinyRenderer\TinyRenderer\x64\Release\TinyRenderer.exe

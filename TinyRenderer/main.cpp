@@ -31,8 +31,8 @@ TinyRenderer rendererfunc;
 
 static const int ScreenWidth = 800;
 static const int ScreenHeight = 800;
-constexpr int shadoww = 8000;    // shadow map buffer size
-constexpr int shadowh = 8000;
+constexpr int shadoww = 800;    // shadow map buffer size
+constexpr int shadowh = 800;
 
 // 定义4x4的矩阵
 //mat<4, 4> ModelView, Viewport, Perspective;
@@ -165,9 +165,36 @@ struct PhongShader : IShader {
 	}
 };
 
+void drop_zbuffer(std::string filename, std::vector<double>& zbuffer, int width, int height) {
+	TGAImage zimg(width, height, TGAImage::GRAYSCALE, { 0,0,0,0 });
+	double minz = +1000;
+	double maxz = -1000;
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			double z = zbuffer[x + y * width];
+			if (z < -100) continue;
+			minz = std::min(z, minz);
+			maxz = std::max(z, maxz);
+		}
+	}
+	for (int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			double z = zbuffer[x + y * width];
+			if (z < -100) continue;
+			z = (z - minz) / (maxz - minz) * 255;
+			zimg.set(x, y, { (std::uint8_t)z, 255, 255, 255 });
+		}
+	}
+	zimg.write_tga_file(filename);
+}
+
 Model* model;
 RandomShader* randomshader;
 PhongShader* phongshader;
+BlankShader* shader;
+
+Model* model_2;
+PhongShader* phongshader_2;
 
 
 vec3 world2screen(vec4 v, int minSize) {
@@ -214,14 +241,16 @@ void ShowModel_1(SDL_Renderer* renderer)
 /// 初始化设置
 void Init()
 {
-	//model = new Model("../obj/african_head/african_head.obj");
+	//model_2 = new Model("../obj/african_head/african_head.obj");
 	model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
 	//model = new Model("../obj/boggie/body.obj");
+
+	model_2 = new Model("../obj/floor.obj");
 
 	zbuffer = std::vector<double>(ScreenWidth * ScreenHeight, -std::numeric_limits<double>::max());
 	
 	constexpr vec3  light{ 1, 1, 1 }; // light source
-	constexpr vec3    eye{ 1,1,-2 }; // camera position 相机的位置
+	constexpr vec3    eye{ -1,0,2 }; // camera position 相机的位置
 	constexpr vec3 center{ 0,0,0 };  // camera direction 相机的方向
 	constexpr vec3     up{ 0,1,0 };  // camera up vector 相机向上矢量
 
@@ -233,7 +262,11 @@ void Init()
 	//TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
 
 	randomshader = new RandomShader(*model);
+
+	shader = new BlankShader{ *model };
 	phongshader = new PhongShader(light, *model);
+
+	phongshader_2 = new PhongShader(light, *model_2);
 }
 
 
@@ -241,6 +274,10 @@ void Destory() {
 	delete model;
 	delete randomshader;
 	delete phongshader;
+	delete shader;
+
+	delete model_2;
+	delete phongshader_2;
 }
 
 
@@ -249,12 +286,84 @@ void ShowModel(SDL_Renderer* renderer)
 	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
 
 	for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
-		//randomshader->color = { (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), 255 };
 		Triangle clip = { phongshader->vertex(f, 0),  // assemble the primitive
 						  phongshader->vertex(f, 1),
 						  phongshader->vertex(f, 2) };
 		rasterize(clip, *phongshader, *renderer);   // rasterize the primitive
 	}
+
+
+	for (int f = 0; f < model_2->nfaces(); f++) {      // iterate through all facets
+		//randomshader->color = { (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), 255 };
+		Triangle clip = { phongshader_2->vertex(f, 0),  // assemble the primitive
+						  phongshader_2->vertex(f, 1),
+						  phongshader_2->vertex(f, 2) };
+		rasterize(clip, *phongshader_2, *renderer);   // rasterize the primitive
+	}
+
+	{ // shadow rendering pass
+		constexpr vec3  light{ 1, 1, 1 }; // light source
+		constexpr vec3    eye{ -1, 0, 2 }; // camera position
+		constexpr vec3 center{ 0, 0, 0 }; // camera direction
+		constexpr vec3     up{ 0, 1, 0 }; // camera up vector
+		lookat(light, center, up);
+		init_perspective(norm(eye - center));
+		init_viewport(shadoww / 16, shadowh / 16, shadoww * 7 / 8, shadowh * 7 / 8);
+		init_zbuffer(shadoww, shadowh);
+		TGAImage trash(shadoww, shadowh, TGAImage::RGB, { 177, 195, 209, 255 });
+
+		for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
+			Triangle clip = { shader->vertex(f, 0),  // assemble the primitive
+							  shader->vertex(f, 1),
+							  shader->vertex(f, 2) };
+			rasterize(clip, *shader, trash);         // rasterize the primitive
+		}
+
+		trash.write_tga_file("shadowmap.tga");
+	}
+
+	drop_zbuffer("zbuffer2.tga", zbuffer, shadoww, shadoww);
+
+
+	std::vector<bool> mask(ScreenWidth * ScreenHeight, false);
+	std::vector<double> zbuffer_copy = zbuffer;
+	mat<4, 4> M = (Viewport * Perspective * ModelView).invert();
+	TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
+	mat<4, 4> N = Viewport * Perspective * ModelView;
+	// post-processing
+	for (int x = 0; x < ScreenWidth; x++) {
+		for (int y = 0; y < ScreenHeight; y++) {
+			vec4 fragment = M * vec4{ (double)x, (double)y, zbuffer_copy[x + y * ScreenWidth], 1. };
+			vec4 q = N * fragment;
+			vec3 p = q.xyz() / q.w;
+			bool lit = (fragment.z < -100 ||                                   // it's the background or
+				(p.x < 0 || p.x >= shadoww || p.y < 0 || p.y >= shadowh) ||   // it is out of bounds of the shadow buffer
+				(p.z > zbuffer[int(p.x) + int(p.y) * shadoww] - .03));  // it is visible
+			mask[x + y * ScreenWidth] = lit;
+		}
+	}
+
+	TGAImage maskimg(ScreenWidth, ScreenHeight, TGAImage::GRAYSCALE);
+	for (int x = 0; x < ScreenWidth; x++) {
+		for (int y = 0; y < ScreenHeight; y++) {
+			if (mask[x + y * ScreenWidth]) continue;
+			maskimg.set(x, y, { 255, 255, 255, 255 });
+		}
+	}
+	maskimg.write_tga_file("mask.tga");
+
+	for (int x = 0; x < ScreenWidth; x++) {
+		for (int y = 0; y < ScreenHeight; y++) {
+			if (mask[x + y * ScreenWidth]) continue;
+			TGAColor c = framebuffer.get(x, y);
+			vec3 a = { c[0], c[1], c[2] };
+			if (norm(a) < 80) continue;
+			a = normalized(a) * 80;
+			framebuffer.set(x, y, { (std::uint8_t)a[0], (std::uint8_t)a[1], (std::uint8_t)a[2], 255 });
+		}
+	}
+	framebuffer.write_tga_file("shadow.tga");
+
 }
 
 
@@ -276,8 +385,8 @@ void OnRender(SDL_Renderer* renderer)
 {
 	//// 绘制背景图
 	// 绘制一个红色像素点
-	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // 红色
-	SDL_RenderDrawPoint(renderer, 320, 240); // 在屏幕中心绘制
+	//SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // 红色
+	//SDL_RenderDrawPoint(renderer, 320, 240); // 在屏幕中心绘制
 
 	//SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // 白色
 	//for (int i = 0; i < 10; i++) {
