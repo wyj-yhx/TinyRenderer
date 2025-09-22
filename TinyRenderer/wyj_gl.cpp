@@ -28,7 +28,7 @@ void init_zbuffer(const int width, const int height) {
 
 void rasterize(const Triangle& clip, const IShader& shader, TGAImage& framebuffer) {
     //vec4 ndc[3] = { clip[0] / clip[0].w, clip[1] / clip[1].w, clip[2] / clip[2].w };                // normalized device coordinates
-    vec4 ndc[3] = { clip[2] / clip[2].w, clip[1] / clip[1].w, clip[0] / clip[0].w };                // 坐标系不同采用不同的处理
+    vec4 ndc[3] = { clip[0] / clip[0].w, clip[1] / clip[1].w, clip[2] / clip[2].w };                // 坐标系不同采用不同的处理
     vec2 screen[3] = { (Viewport * ndc[0]).xy(), (Viewport * ndc[1]).xy(), (Viewport * ndc[2]).xy() }; // screen coordinates
 
     mat<3, 3> ABC = { { {screen[0].x, screen[0].y, 1.}, {screen[1].x, screen[1].y, 1.}, {screen[2].x, screen[2].y, 1.} } };
@@ -81,7 +81,8 @@ void rasterize(const Triangle& clip, const IShader& shader, SDL_Renderer& render
             //double z = bc * vec3{ ndc[0].z, ndc[1].z, ndc[2].z };  // linear interpolation of the depth
             /*****点位信息*****/
             vec3 bc_screen = ABC.invert_transpose() * vec3 { static_cast<double>(x), static_cast<double>(y), 1. }; // barycentric coordinates of {x,y} w.r.t the triangle
-            vec3 bc_clip = { bc_screen.x / clip[0].w, bc_screen.y / clip[1].w, bc_screen.z / clip[2].w };     // check https://github.com/ssloy/tinyrenderer/wiki/Technical-difficulties-linear-interpolation-with-perspective-deformations
+            // 2 与 0 互换，解决部分图像三角形翻转的问题
+            vec3 bc_clip = { bc_screen.x / clip[2].w, bc_screen.y / clip[1].w, bc_screen.z / clip[0].w };     // check https://github.com/ssloy/tinyrenderer/wiki/Technical-difficulties-linear-interpolation-with-perspective-deformations
             bc_clip = bc_clip / (bc_clip.x + bc_clip.y + bc_clip.z);
             if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue; // negative barycentric coordinate => the pixel is outside the triangle
             double z = bc_screen * vec3{ ndc[0].z, ndc[1].z, ndc[2].z };   // linear interpolation of the depth
