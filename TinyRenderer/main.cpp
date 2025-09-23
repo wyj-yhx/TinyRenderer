@@ -34,12 +34,17 @@ static const int ScreenHeight = 800;
 constexpr int shadoww = 800;    // shadow map buffer size
 constexpr int shadowh = 800;
 
+constexpr vec3  light{ 1, 1, 1 }; // light source
+constexpr vec3    eye{ -1,0,2 }; // camera position 相机的位置
+constexpr vec3 center{ 0,0,0 };  // camera direction 相机的方向
+constexpr vec3     up{ 0,1,0 };  // camera up vector 相机向上矢量
+
 // 定义4x4的矩阵
 //mat<4, 4> ModelView, Viewport, Perspective;
 
 vec3 light_dir{ 0, 0, -0.5 }; // define light_dir
 
-extern mat<4, 4> ModelView, Perspective; // "OpenGL" state matrices and
+extern mat<4, 4> Viewport, ModelView, Perspective; // "OpenGL" state matrices and
 extern std::vector<double> zbuffer;     // the depth buffer
 
 
@@ -71,6 +76,7 @@ struct BlankShader : IShader {
 
 	virtual vec4 vertex(const int face, const int vert) {
 		vec4 gl_Position = ModelView * model.vert(face, vert);
+		gl_Position.y = -gl_Position.y;
 		return Perspective * gl_Position;
 	}
 
@@ -191,7 +197,7 @@ void drop_zbuffer(std::string filename, std::vector<double>& zbuffer, int width,
 Model* model;
 RandomShader* randomshader;
 PhongShader* phongshader;
-BlankShader* shader;
+BlankShader* blankshader;
 
 Model* model_2;
 PhongShader* phongshader_2;
@@ -237,75 +243,15 @@ void ShowModel_1(SDL_Renderer* renderer)
 
 }
 
+void ShowSlank_1() {
 
-/// 初始化设置
-void Init()
-{
-	//model_2 = new Model("../obj/african_head/african_head.obj");
-	model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
-	//model = new Model("../obj/boggie/body.obj");
+	TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
 
-	model_2 = new Model("../obj/floor.obj");
-
-	zbuffer = std::vector<double>(ScreenWidth * ScreenHeight, -std::numeric_limits<double>::max());
-	
-	constexpr vec3  light{ 1, 1, 1 }; // light source
-	constexpr vec3    eye{ -1,0,2 }; // camera position 相机的位置
-	constexpr vec3 center{ 0,0,0 };  // camera direction 相机的方向
-	constexpr vec3     up{ 0,1,0 };  // camera up vector 相机向上矢量
-
-	//初始化矩阵
-	lookat(eye, center, up);                                   // build the ModelView   matrix
-	init_perspective(norm(eye - center));                        // build the Perspective matrix
-	init_viewport(ScreenWidth / 16, ScreenHeight / 16, ScreenWidth * 7 / 8, ScreenHeight * 7 / 8); // build the Viewport    matrix
-	init_zbuffer(ScreenWidth, ScreenHeight);
-	//TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
-
-	randomshader = new RandomShader(*model);
-
-	shader = new BlankShader{ *model };
-	phongshader = new PhongShader(light, *model);
-
-	phongshader_2 = new PhongShader(light, *model_2);
-}
-
-
-void Destory() {
-	delete model;
-	delete randomshader;
-	delete phongshader;
-	delete shader;
-
-	delete model_2;
-	delete phongshader_2;
-}
-
-
-void ShowModel(SDL_Renderer* renderer)
-{
-	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
-
-	for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
-		Triangle clip = { phongshader->vertex(f, 0),  // assemble the primitive
-						  phongshader->vertex(f, 1),
-						  phongshader->vertex(f, 2) };
-		rasterize(clip, *phongshader, *renderer);   // rasterize the primitive
-	}
-
-
-	for (int f = 0; f < model_2->nfaces(); f++) {      // iterate through all facets
-		//randomshader->color = { (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), 255 };
-		Triangle clip = { phongshader_2->vertex(f, 0),  // assemble the primitive
-						  phongshader_2->vertex(f, 1),
-						  phongshader_2->vertex(f, 2) };
-		rasterize(clip, *phongshader_2, *renderer);   // rasterize the primitive
-	}
+	std::vector<bool> mask(ScreenWidth * ScreenHeight, false);
+	std::vector<double> zbuffer_copy = zbuffer;
+	mat<4, 4> M = (Viewport * Perspective * ModelView).invert();
 
 	{ // shadow rendering pass
-		constexpr vec3  light{ 1, 1, 1 }; // light source
-		constexpr vec3    eye{ -1, 0, 2 }; // camera position
-		constexpr vec3 center{ 0, 0, 0 }; // camera direction
-		constexpr vec3     up{ 0, 1, 0 }; // camera up vector
 		lookat(light, center, up);
 		init_perspective(norm(eye - center));
 		init_viewport(shadoww / 16, shadowh / 16, shadoww * 7 / 8, shadowh * 7 / 8);
@@ -313,10 +259,10 @@ void ShowModel(SDL_Renderer* renderer)
 		TGAImage trash(shadoww, shadowh, TGAImage::RGB, { 177, 195, 209, 255 });
 
 		for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
-			Triangle clip = { shader->vertex(f, 0),  // assemble the primitive
-							  shader->vertex(f, 1),
-							  shader->vertex(f, 2) };
-			rasterize(clip, *shader, trash);         // rasterize the primitive
+			Triangle clip = { blankshader->vertex(f, 0),  // assemble the primitive
+							  blankshader->vertex(f, 1),
+							  blankshader->vertex(f, 2) };
+			rasterize(clip, *blankshader, trash);         // rasterize the primitive
 		}
 
 		trash.write_tga_file("shadowmap.tga");
@@ -325,11 +271,8 @@ void ShowModel(SDL_Renderer* renderer)
 	drop_zbuffer("zbuffer2.tga", zbuffer, shadoww, shadoww);
 
 
-	std::vector<bool> mask(ScreenWidth * ScreenHeight, false);
-	std::vector<double> zbuffer_copy = zbuffer;
-	mat<4, 4> M = (Viewport * Perspective * ModelView).invert();
-	TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
 	mat<4, 4> N = Viewport * Perspective * ModelView;
+
 	// post-processing
 	for (int x = 0; x < ScreenWidth; x++) {
 		for (int y = 0; y < ScreenHeight; y++) {
@@ -337,8 +280,8 @@ void ShowModel(SDL_Renderer* renderer)
 			vec4 q = N * fragment;
 			vec3 p = q.xyz() / q.w;
 			bool lit = (fragment.z < -100 ||                                   // it's the background or
-				(p.x < 0 || p.x >= shadoww || p.y < 0 || p.y >= shadowh) ||   // it is out of bounds of the shadow buffer
-				(p.z > zbuffer[int(p.x) + int(p.y) * shadoww] - .03));  // it is visible
+				(p.x < 0 || p.x >= shadoww || p.y < 0 || p.y >= shadowh) ||   // it is out of bounds of the shadow buffer 它超出了阴影缓冲区的范围
+				(p.z > zbuffer[int(p.x) + int(p.y) * shadoww] - .03));  // it is visible 它是可见的
 			mask[x + y * ScreenWidth] = lit;
 		}
 	}
@@ -366,6 +309,125 @@ void ShowModel(SDL_Renderer* renderer)
 
 }
 
+void ShowBlank(SDL_Renderer* renderer);
+
+/// 初始化设置
+void Init()
+{
+	//model_2 = new Model("../obj/african_head/african_head.obj");
+	model = new Model("../obj/diablo3_pose/diablo3_pose.obj");
+	//model = new Model("../obj/boggie/body.obj");
+
+	model_2 = new Model("../obj/floor.obj");
+
+	zbuffer = std::vector<double>(ScreenWidth * ScreenHeight, -std::numeric_limits<double>::max());
+	
+
+	//初始化矩阵
+	lookat(eye, center, up);                                   // build the ModelView   matrix
+	init_perspective(norm(eye - center));                        // build the Perspective matrix
+	init_viewport(ScreenWidth / 16, ScreenHeight / 16, ScreenWidth * 7 / 8, ScreenHeight * 7 / 8); // build the Viewport    matrix
+	init_zbuffer(ScreenWidth, ScreenHeight);
+	//TGAImage framebuffer(ScreenWidth, ScreenHeight, TGAImage::RGB, { 177, 195, 209, 255 });
+
+	randomshader = new RandomShader(*model);
+
+	blankshader = new BlankShader{ *model };
+	phongshader = new PhongShader(light, *model);
+
+	phongshader_2 = new PhongShader(light, *model_2);
+}
+
+
+void Destory() {
+	delete model;
+	delete randomshader;
+	delete phongshader;
+	delete blankshader;
+
+	delete model_2;
+	delete phongshader_2;
+}
+
+
+void ShowModel(SDL_Renderer* renderer)
+{
+	for (int i = ScreenWidth * ScreenHeight; i--; zbuffer[i] = -std::numeric_limits<float>::max());
+
+	lookat(eye, center, up);
+
+	for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
+		Triangle clip = { phongshader->vertex(f, 0),  // assemble the primitive
+						  phongshader->vertex(f, 1),
+						  phongshader->vertex(f, 2) };
+		rasterize(clip, *phongshader, *renderer);   // rasterize the primitive
+	}
+
+
+	for (int f = 0; f < model_2->nfaces(); f++) {      // iterate through all facets
+		//randomshader->color = { (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), (uint8_t)(std::rand() % 255), 255 };
+		Triangle clip = { phongshader_2->vertex(f, 0),  // assemble the primitive
+						  phongshader_2->vertex(f, 1),
+						  phongshader_2->vertex(f, 2) };
+		rasterize(clip, *phongshader_2, *renderer);   // rasterize the primitive
+	}
+
+	//ShowBlank(renderer);		//显示阴影
+}
+
+void ShowBlank(SDL_Renderer* renderer) {
+
+	std::vector<bool> mask(ScreenWidth * ScreenHeight, false);
+	std::vector<double> zbuffer_copy = zbuffer;
+	mat<4, 4> M = (Viewport * Perspective * ModelView).invert();
+
+	{ // shadow rendering pass
+		lookat(light, center, up);
+		TGAImage trash(shadoww, shadowh, TGAImage::RGB, { 177, 195, 209, 255 });
+		for (int f = 0; f < model->nfaces(); f++) {      // iterate through all facets
+			Triangle clip = { blankshader->vertex(f, 0),  // assemble the primitive
+							  blankshader->vertex(f, 1),
+							  blankshader->vertex(f, 2) };
+			rasterize(clip, *blankshader, *renderer);         // rasterize the primitive
+		}
+
+	}
+
+	mat<4, 4> N = Viewport * Perspective * ModelView;
+
+	// post-processing
+	for (int x = 0; x < ScreenWidth; x++) {
+		for (int y = 0; y < ScreenHeight; y++) {
+			vec4 fragment = M * vec4{ (double)x, (double)y, zbuffer_copy[x + y * ScreenWidth], 1. };
+			vec4 q = N * fragment;
+			vec3 p = q.xyz() / q.w;
+			bool lit = (fragment.z < -100 ||                                   // it's the background or
+				(p.x < 0 || p.x >= shadoww || p.y < 0 || p.y >= shadowh) ||   // it is out of bounds of the shadow buffer 它超出了阴影缓冲区的范围
+				(p.z > zbuffer[int(p.x) + int(p.y) * shadoww] - .03));  // it is visible 它是可见的
+			mask[x + y * ScreenWidth] = lit;
+		}
+	}
+
+	TGAImage maskimg(ScreenWidth, ScreenHeight, TGAImage::GRAYSCALE);
+	for (int x = 0; x < ScreenWidth; x++) {
+		for (int y = 0; y < ScreenHeight; y++) {
+			if (mask[x + y * ScreenWidth]) continue;
+			maskimg.set(x, y, { 255, 255, 255, 255 });
+		}
+	}
+
+	//for (int x = 0; x < ScreenWidth; x++) {
+	//	for (int y = 0; y < ScreenHeight; y++) {
+	//		if (mask[x + y * ScreenWidth]) continue;
+	//		TGAColor c = framebuffer.get(x, y);
+	//		vec3 a = { c[0], c[1], c[2] };
+	//		if (norm(a) < 80) continue;
+	//		a = normalized(a) * 80;
+	//		framebuffer.set(x, y, { (std::uint8_t)a[0], (std::uint8_t)a[1], (std::uint8_t)a[2], 255 });
+	//	}
+	//}
+
+}
 
 
 /// <summary>
